@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 
 import argparse
-from dotenv import load_dotenv
-from token_tree_builder import TokenTreeBuilder
-
 import flask
 from flask import request
 import html
 import base64
+import os
+
+from token_tree_builder import TokenTreeBuilder
+
+from dotenv import load_dotenv
+load_dotenv()
 
 MODEL = "gpt-3.5-turbo"
 MAXIMUM_NUMBER_OF_RUNS = 50
@@ -15,9 +18,11 @@ MAXIMUM_MAX_TOKENS = 10
 MAXIMUM_TOP_LOGPROBS = 10
 MAXIMUM_PROMPT_SIZE = 500
 
+BASE_PATH = os.environ.get("BASE_PATH", "/")
+
 app = flask.Flask(__name__)
 
-@app.route("/token-tree/", methods=["GET"])
+@app.route(BASE_PATH, methods=["GET"])
 def index():
     number_of_runs = int(request.args.get("number_of_runs", 5))
     if number_of_runs > MAXIMUM_NUMBER_OF_RUNS:
@@ -57,7 +62,7 @@ def index():
         <body>
         <h1>Generate a tree of tokens!</h1>
         <p>Enter a prompt. We'll explore the tokens that get generated in response. At each token we can see what the token's ID is, how it is represented in text, and what some possible next-tokens are.</p>
-        <form method="get" action="/token-tree/">
+        <form method="get" action="{BASE_PATH}">
             <label for="prompt">Prompt:</label>
             <br/>
             <textarea name="prompt" cols=80 rows=5>{prompt}</textarea>
@@ -120,7 +125,6 @@ def run_one_off():
     print(tree.to_graphviz())
 
 def main():
-    load_dotenv()
     parser = argparse.ArgumentParser(description="Token Tree Generator")
     parser.add_argument('-s', '--server', action='store_true', help='Start the server')
 
