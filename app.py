@@ -17,7 +17,7 @@ MAXIMUM_PROMPT_SIZE = 500
 
 app = flask.Flask(__name__)
 
-@app.route("/", methods=["GET"])
+@app.route("/token-tree/", methods=["GET"])
 def index():
     number_of_runs = int(request.args.get("number_of_runs", 5))
     if number_of_runs > MAXIMUM_NUMBER_OF_RUNS:
@@ -57,7 +57,7 @@ def index():
         <body>
         <h1>Generate a tree of tokens!</h1>
         <p>Enter a prompt. We'll explore the tokens that get generated in response. At each token we can see what the token's ID is, how it is represented in text, and what some possible next-tokens are.</p>
-        <form method="get" action="/">
+        <form method="get" action="/token-tree/">
             <label for="prompt">Prompt:</label>
             <br/>
             <textarea name="prompt" cols=80 rows=5>{prompt}</textarea>
