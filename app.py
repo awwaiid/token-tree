@@ -30,6 +30,7 @@ def index():
         top_logprobs = MAXIMUM_TOP_LOGPROBS
     show_token_id = bool(request.args.get("show_token_id") == "true")
     show_log_prob = bool(request.args.get("show_log_prob") == "true")
+    show_gen_count = bool(request.args.get("show_gen_count") == "true")
 
     prompt = html.escape(request.args.get(
         "prompt",
@@ -42,12 +43,18 @@ def index():
     token_tree_builder = TokenTreeBuilder()
     tree = token_tree_builder.run(prompt, model=MODEL, n=number_of_runs, max_tokens=max_tokens, top_logprobs=top_logprobs)
     print(f"in app show_token_id = {show_token_id}")
-    graphviz = tree.to_graphviz(show_token_id=show_token_id, show_log_prob=show_log_prob)
+    graphviz = tree.to_graphviz(show_token_id=show_token_id, show_log_prob=show_log_prob, show_gen_count=show_gen_count)
     print(graphviz)
     encoded_graphviz = base64.b64encode(graphviz.encode('utf-8')).decode('utf-8')
     print(encoded_graphviz)
 
     return f"""
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <title>Token Tree Generator</title>
+            </head>
+        <body>
         <h1>Generate a tree of tokens!</h1>
         <p>Enter a prompt. We'll explore the tokens that get generated in response. At each token we can see what the token's ID is, how it is represented in text, and what some possible next-tokens are.</p>
         <form method="get" action="/">
@@ -66,6 +73,8 @@ def index():
             <label for="show_token_id">Show token_id</label>
             <input type="checkbox" name="show_log_prob" value="true" {"checked" if show_log_prob else ""} />
             <label for="show_log_prob">Show log prob</label>
+            <input type="checkbox" name="show_gen_count" value="true" {"checked" if show_gen_count else ""} />
+            <label for="show_gen_count">Show gen count</label>
             <input type="submit" value="Go!" />
         </form>
     """ + """
@@ -86,19 +95,24 @@ def index():
     """ + """
         </script>
         <style>
-            #graphviz svg {
+            #graphviz {
                 width: 90vw;
+            }
+            #graphviz svg {
+                width: 100%;
+                height: auto;
                 overflow: visible;
             }
             #graphviz svg .node polygon {
-              fill: white;
+              /* fill: white; */
               filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.5));
             }
         </style>
+        </body>
     """
 
 def start_server():
-    app.run(debug=True)
+    app.run(host="0.0.0.0", debug=True)
 
 def run_one_off():
     token_tree_builder = TokenTreeBuilder()

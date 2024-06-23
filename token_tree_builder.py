@@ -41,6 +41,8 @@ class TokenTreeBuilder():
                 current_node.merge_children([token_tree])
 
                 current_node = current_node.children[token]
+                current_node.gen_count += 1
+                TokenTree.max_gen_count = max(TokenTree.max_gen_count, current_node.gen_count)
 
         return root
 
