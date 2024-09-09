@@ -2,7 +2,7 @@
 
 import argparse
 import flask
-from flask import request
+from flask import request, render_template, Blueprint, Flask
 import html
 import base64
 import os
@@ -12,17 +12,18 @@ from token_tree_builder import TokenTreeBuilder
 from dotenv import load_dotenv
 load_dotenv()
 
-MODEL = "gpt-3.5-turbo"
-MAXIMUM_NUMBER_OF_RUNS = 50
-MAXIMUM_MAX_TOKENS = 10
+# MODEL = "gpt-3.5-turbo"
+MODEL = "gpt-4o-mini"
+MAXIMUM_NUMBER_OF_RUNS = 100
+MAXIMUM_MAX_TOKENS = 50
 MAXIMUM_TOP_LOGPROBS = 10
 MAXIMUM_PROMPT_SIZE = 500
 
 BASE_PATH = os.environ.get("BASE_PATH", "/")
 
-app = flask.Flask(__name__)
+app = Blueprint("app", __name__, template_folder="templates", static_folder="static")
 
-@app.route(BASE_PATH, methods=["GET"])
+@app.route("/", methods=["GET"])
 def index():
     number_of_runs = int(request.args.get("number_of_runs", 5))
     if number_of_runs > MAXIMUM_NUMBER_OF_RUNS:
@@ -36,6 +37,9 @@ def index():
     show_token_id = bool(request.args.get("show_token_id") == "true")
     show_log_prob = bool(request.args.get("show_log_prob") == "true")
     show_gen_count = bool(request.args.get("show_gen_count") == "true")
+    show_message = bool(request.args.get("show_message") == "true")
+    top_down_tree = bool(request.args.get("top_down_tree") == "true")
+    seed = int(request.args.get("seed", -1))
 
     prompt = html.escape(request.args.get(
         "prompt",
@@ -44,80 +48,42 @@ def index():
 
     prompt = prompt[:MAXIMUM_PROMPT_SIZE]
 
-    print(f"token_tree_builder.run({prompt}, model={MODEL}, n={number_of_runs}, max_tokens={max_tokens}, top_logprobs={top_logprobs})")
+    print(f"token_tree_builder.run({prompt}, model={MODEL}, n={number_of_runs}, max_tokens={max_tokens}, top_logprobs={top_logprobs}, seed={seed})")
     token_tree_builder = TokenTreeBuilder()
-    tree = token_tree_builder.run(prompt, model=MODEL, n=number_of_runs, max_tokens=max_tokens, top_logprobs=top_logprobs)
+    tree = token_tree_builder.run(prompt, model=MODEL, n=number_of_runs, max_tokens=max_tokens, top_logprobs=top_logprobs, seed=seed)
     print(f"in app show_token_id = {show_token_id}")
-    graphviz = tree.to_graphviz(show_token_id=show_token_id, show_log_prob=show_log_prob, show_gen_count=show_gen_count)
+    graphviz = tree.to_graphviz(show_token_id=show_token_id, show_log_prob=show_log_prob, show_gen_count=show_gen_count, show_message=show_message, top_down_tree=top_down_tree)
     print(graphviz)
     encoded_graphviz = base64.b64encode(graphviz.encode('utf-8')).decode('utf-8')
     print(encoded_graphviz)
 
-    return f"""
-        <!DOCTYPE html>
-        <html>
-            <head>
-                <title>Token Tree Generator</title>
-            </head>
-        <body>
-        <h1>Generate a tree of tokens!</h1>
-        <p>Enter a prompt. We'll explore the tokens that get generated in response. At each token we can see what the token's ID is, how it is represented in text, and what some possible next-tokens are.</p>
-        <form method="get" action="{BASE_PATH}">
-            <label for="prompt">Prompt:</label>
-            <br/>
-            <textarea name="prompt" cols=80 rows=5>{prompt}</textarea>
-            <br/>
-            <label for="number_of_runs">number_of_runs:</label>
-            <input type="text" name="number_of_runs" value="{number_of_runs}" size=5 />
-            <label for="max_tokens">max_tokens:</label>
-            <input type="text" name="max_tokens" value="{max_tokens}" size=5 />
-            <label for="top_logprobs">top_logprobs:</label>
-            <input type="text" name="top_logprobs" value="{top_logprobs}" size=5 />
-            <br/>
-            <input type="checkbox" name="show_token_id" value="true" {"checked" if show_token_id else ""} />
-            <label for="show_token_id">Show token_id</label>
-            <input type="checkbox" name="show_log_prob" value="true" {"checked" if show_log_prob else ""} />
-            <label for="show_log_prob">Show log prob</label>
-            <input type="checkbox" name="show_gen_count" value="true" {"checked" if show_gen_count else ""} />
-            <label for="show_gen_count">Show gen count</label>
-            <input type="submit" value="Go!" />
-        </form>
-    """ + """
-        <div id="graphviz"></div>
+    return render_template(
+            "index.html",
+            BASE_PATH=BASE_PATH,
+            MODEL=MODEL,
+            prompt=prompt,
+            number_of_runs=number_of_runs,
+            max_tokens=max_tokens,
+            top_logprobs=top_logprobs,
+            seed=seed,
+            show_token_id=show_token_id,
+            show_log_prob=show_log_prob,
+            show_gen_count=show_gen_count,
+            show_message=show_message,
+            top_down_tree=top_down_tree,
+            encoded_graphviz=encoded_graphviz,
+            MAXIMUM_NUMBER_OF_RUNS=MAXIMUM_NUMBER_OF_RUNS,
+            MAXIMUM_MAX_TOKENS=MAXIMUM_MAX_TOKENS,
+            MAXIMUM_TOP_LOGPROBS=MAXIMUM_TOP_LOGPROBS,
+            MAXIMUM_PROMPT_SIZE=MAXIMUM_PROMPT_SIZE,
+        )
 
-        <script src="https://unpkg.com/@viz-js/viz"></script>
 
-        <script>
-            function renderGraphviz(dot) {
-                Viz.instance().then(viz => {
-                  document.getElementById("graphviz").innerHTML = ""
-                  document.getElementById("graphviz").appendChild(viz.renderSVGElement(dot));
-                });
-            }
-    """ + f"""
-            let dot = atob("{encoded_graphviz}");
-            renderGraphviz(dot);
-    """ + """
-        </script>
-        <style>
-            #graphviz {
-                width: 90vw;
-            }
-            #graphviz svg {
-                width: 100%;
-                height: auto;
-                overflow: visible;
-            }
-            #graphviz svg .node polygon {
-              /* fill: white; */
-              filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.5));
-            }
-        </style>
-        </body>
-    """
+real_app = Flask(__name__)
+real_app.register_blueprint(app, url_prefix=BASE_PATH)
 
 def start_server():
-    app.run(host="0.0.0.0", debug=True)
+    real_app.run(host="0.0.0.0", debug=True)
 
 def run_one_off():
     token_tree_builder = TokenTreeBuilder()

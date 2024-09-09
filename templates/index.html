@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Tree Generator</title>
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-7FLNGJSFBK"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-7FLNGJSFBK');
+    </script>
+
+    <script src="https://unpkg.com/@viz-js/viz"></script>
+
+    <link href="{{url_for('app.static',filename='css/output.css')}}" rel="stylesheet">
+
+    <style>
+      #graphviz {
+        /* width: 90vw; */
+      }
+      #graphviz svg {
+        width: 100%;
+        height: auto;
+        overflow: visible;
+        background-color: transparent;
+      }
+      #graphviz svg .node polygon {
+        /* fill: white; */
+        filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.5));
+      }
+    </style>
+  </head>
+  <body class="dark bg-gray-800 flex justify-center">
+
+    <div class="m-8 prose prose-lg dark:prose-invert max-w-screen-lg">
+
+      <div class="bg-gray-800 text-white w-full format">
+        <div class="text-white text-6xl">LLM Token Tree</div>
+        <div class="text-gray-400"><i>Exploring intuitions around token selection</i></div>
+
+        <p>Enter a prompt. We'll visualize the tokens that get generated in response. At each step we can see what some of the possible tokens are, optionally showing the token IDs, probabilities, and paths not taken. We can run the same prompt a bunch of times and then overlay the results. Currently uses OpenAI model {{MODEL}}.</p>
+      </div>
+
+      <form method="get" action="{{BASE_PATH}}">
+
+        <div class="bg-gray-800 text-white w-full format flex flex-col gap-4">
+          <div class="flex flex-col">
+            <label for="prompt">Prompt:</label>
+            <textarea name="prompt" class="resize block p-2.5 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500">{{prompt}}</textarea>
+          </div>
+
+          <div class="flex gap-4 flex-wrap">
+            <div class="flex items-center group relative">
+              <label for="number_of_runs" class="mr-1">Execution Count:</label>
+              <input type="number" name="number_of_runs" value="{{number_of_runs}}" max={{MAXIMUM_NUMBER_OF_RUNS}} size=4 class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"/>
+
+              <span
+                class="pointer-events-none absolute top-10 left-0 opacity-0 transition-opacity group-hover:opacity-100 bg-gray-800 text-white text-xs p-1 rounded-lg border z-10"
+              >
+                How many times to run the model. More runs will give a better sense of the distribution of tokens. (max {{MAXIMUM_NUMBER_OF_RUNS}})
+              </span>
+
+            </div>
+            <div class="flex items-center group relative">
+              <label for="max_tokens" class="mr-1">Tokens:</label>
+              <input type="number" name="max_tokens" value="{{max_tokens}}" max={{MAXIMUM_MAX_TOKENS}} size=4 class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"/>
+              <span
+                class="pointer-events-none absolute top-10 left-0 opacity-0 transition-opacity group-hover:opacity-100 bg-gray-800 text-white text-xs p-1 rounded-lg border z-10"
+              >
+                How many tokens to generate. 10 is probably fine. (max {{MAXIMUM_MAX_TOKENS}})
+              </span>
+            </div>
+            <div class="flex items-center group relative">
+              <label for="top_logprobs" class="mr-1">Token Alternatives:</label>
+              <input type="number" name="top_logprobs" value="{{top_logprobs}}" max={{MAXIMUM_TOP_LOGPROBS}} size=4 class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"/>
+              <span
+                class="pointer-events-none absolute top-10 left-0 opacity-0 transition-opacity group-hover:opacity-100 bg-gray-800 text-white text-xs p-1 rounded-lg border z-10"
+              >
+                How many token alternatives to show at each step. This forces getting the top token choices by probability. 0 and 3 are good choices. (max {{MAXIMUM_TOP_LOGPROBS}})
+              </span>
+            </div>
+            <div class="flex items-center group relative">
+              <label for="seed" class="mr-1">Seed:</label>
+              <input type="number" name="seed" value="{{seed}}" size=4 class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"/>
+              <span
+                class="pointer-events-none absolute top-10 left-0 opacity-0 transition-opacity group-hover:opacity-100 bg-gray-800 text-white text-xs p-1 rounded-lg border z-10"
+              >
+                Seed for "random" number generator. Set it to -1 for a random seed. The other parameters with the same seed should give the same result. Kinda! IRL it seems like the logprobs change?
+              </span>
+            </div>
+          </div>
+
+          <div class="flex justify-between items-end h-full">
+          <div class="flex gap-4 flex-wrap">
+            <div class="flex items-center group relative">
+              <input class="mr-1" type="checkbox" name="show_token_id" id="show_token_id" value="true" {{"checked" if show_token_id else ""}} />
+              <label for="show_token_id">Show ID</label>
+              <span
+                class="pointer-events-none absolute top-10 left-0 opacity-0 transition-opacity group-hover:opacity-100 bg-gray-800 text-white text-xs p-1 rounded-lg border z-10"
+              >
+                The token ID is the number that represents the token in the model's vocabulary. Most current models know about 32k tokens. Note in particular that some tokens look pretty much the same but one has a space in front of it. The token ID makes it easy to tell them apart.
+              </span>
+            </div>
+            <div class="flex items-center group relative">
+              <input class="mr-1" type="checkbox" name="show_log_prob" id="show_log_prob" value="true" {{"checked" if show_log_prob else ""}} />
+              <label for="show_log_prob">Show Log Prob</label>
+              <span
+                class="pointer-events-none absolute top-10 left-0 opacity-0 transition-opacity group-hover:opacity-100 bg-gray-800 text-white text-xs p-1 rounded-lg border z-10"
+              >
+                "Log Probs" aka Logarithmic Probabilities are assigned to each token at each position. Lower (more negative) numbers mean less-probable. Zero is certain to be chosen (but we round so 0 might be not-quite-zero).
+              </span>
+            </div>
+            <div class="flex items-center group relative">
+              <input class="mr-1" type="checkbox" name="show_gen_count" id="show_gen_count" value="true" {{"checked" if show_gen_count else ""}} />
+              <label for="show_gen_count">Show Path Count</label>
+              <span
+                class="pointer-events-none absolute top-10 left-0 opacity-0 transition-opacity group-hover:opacity-100 bg-gray-800 text-white text-xs p-1 rounded-lg border z-10"
+              >
+                Each time we re-run the prompt we MIGHT follow the same path we did before. This counts how many times we generated this token at this step.
+              </span>
+            </div>
+            <div class="flex items-center group relative">
+              <input class="mr-1" type="checkbox" name="show_message" id="show_message" value="true" {{"checked" if show_message else ""}} />
+              <label for="show_message">Show Completion</label>
+              <span
+                class="pointer-events-none absolute top-10 left-0 opacity-0 transition-opacity group-hover:opacity-100 bg-gray-800 text-white text-xs p-1 rounded-lg border z-10"
+              >
+                Show a node at the end of each tree branch with a summary of the overall completion.
+              </span>
+            </div>
+            <div class="flex items-center group relative">
+              <input class="mr-1" type="checkbox" name="top_down_tree" id="top_down_tree" value="true" {{"checked" if top_down_tree else ""}} />
+              <label for="top_down_tree">Top-Down Tree</label>
+              <span
+                class="pointer-events-none absolute top-10 left-0 opacity-0 transition-opacity group-hover:opacity-100 bg-gray-800 text-white text-xs p-1 rounded-lg border z-10"
+              >
+                Maybe you like a top-down tree, which works better for long completions or narrow screens.
+              </span>
+            </div>
+          </div>
+          <div>
+            <input type="submit" value="→ Generate Tree" class="hover:cursor-pointer border border-gray-300 text-gray-900 rounded-lg dark:hover:bg-green-600 dark:bg-green-700 dark:border-green-600 pl-2.5 pr-2.5 mt-1" />
+          </div>
+        </div>
+      </form>
+
+      <div id="graphviz" class="max-w-screen-large mt-4"></div>
+    </div>
+
+
+    <script>
+      function b64DecodeUnicode(str) {
+          // Going backwards: from bytestream, to percent-encoding, to original string.
+          return decodeURIComponent(atob(str).split('').map(function(c) {
+              return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+          }).join(''));
+      }
+
+      function renderGraphviz(dot) {
+        Viz.instance().then(viz => {
+          document.getElementById("graphviz").innerHTML = ""
+          document.getElementById("graphviz").appendChild(viz.renderSVGElement(dot));
+        });
+      }
+      let dot = b64DecodeUnicode("{{encoded_graphviz}}");
+      console.log("Graphviz:", dot);
+      renderGraphviz(dot);
+    </script>
+
+  </body>

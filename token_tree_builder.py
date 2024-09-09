@@ -8,15 +8,19 @@ class TokenTreeBuilder():
     def __init__(self):
         self.client = OpenAI()
 
-    def run(self, prompt, model="gpt-3.5-turbo", n=20, max_tokens=10, top_logprobs=10):
+    def run(self, prompt, model="gpt-3.5-turbo", n=20, max_tokens=10, top_logprobs=10, seed=-1):
+        seed = None if seed == -1 else seed
         chat_completion = self.client.chat.completions.create(
             model=model,
             n=n,
             max_tokens=max_tokens,
             logprobs=True,
             top_logprobs=top_logprobs,
+            seed=seed,
             messages=[{"role": "user", "content": prompt}],
         )
+
+        print(f"System fingerprint: {chat_completion.system_fingerprint}")
 
         TokenTree.next_node_id = 0
         root = TokenTree(0, b"", 0.0)
@@ -25,6 +29,7 @@ class TokenTreeBuilder():
 
         for choice in chat_completion.choices:
             logprobs = choice.logprobs.content
+            message = choice.message.content
 
             current_node = root
             for logprob in logprobs:
@@ -39,8 +44,8 @@ class TokenTreeBuilder():
                 token = encoding.encode(logprob.token)[0]
                 token_tree = TokenTree(token, encoding.decode_single_token_bytes(token), logprob.logprob)
                 current_node.merge_children([token_tree])
-
                 current_node = current_node.children[token]
+                current_node.last_message = message
                 current_node.gen_count += 1
                 TokenTree.max_gen_count = max(TokenTree.max_gen_count, current_node.gen_count)
 
