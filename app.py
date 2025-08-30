@@ -25,7 +25,7 @@ app = Blueprint("app", __name__, template_folder="templates", static_folder="sta
 
 @app.route("/", methods=["GET"])
 def index():
-    number_of_runs = int(request.args.get("number_of_runs", 5))
+    number_of_runs = int(request.args.get("number_of_runs", 50))
     if number_of_runs > MAXIMUM_NUMBER_OF_RUNS:
         number_of_runs = MAXIMUM_NUMBER_OF_RUNS
     max_tokens = int(request.args.get("max_tokens", 10))
@@ -36,7 +36,7 @@ def index():
         top_logprobs = MAXIMUM_TOP_LOGPROBS
     show_token_id = bool(request.args.get("show_token_id") == "true")
     show_log_prob = bool(request.args.get("show_log_prob") == "true")
-    show_gen_count = bool(request.args.get("show_gen_count") == "true")
+    show_gen_count = request.args.get("show_gen_count") is not None if request.args else True
     show_message = bool(request.args.get("show_message") == "true")
     top_down_tree = bool(request.args.get("top_down_tree") == "true")
     seed = int(request.args.get("seed", -1))
